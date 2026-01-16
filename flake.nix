@@ -35,6 +35,11 @@
             temporalio
           ];
 
+          pythonImportsCheck = [
+            "activities"
+            "workflows"
+          ];
+
           meta = with pkgs.lib; {
             description = "Temporal ClickHouse GeoIP import libraries";
             license = licenses.mit;
