@@ -21,7 +21,7 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn
 class ClickHouseGeoIPDataInsert:
     @workflow.run
-    async def run(self, temp_location: str, ip_family: str) -> int:
+    async def run(self, temp_location: str, ip_family: str) -> str:
         downloaded_file = await workflow.execute_activity(
             download_file,
             args=[temp_location, f"dbip-city-{ip_family.lower()}.csv.gz"],
