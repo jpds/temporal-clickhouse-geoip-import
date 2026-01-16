@@ -2,6 +2,9 @@ from datetime import timedelta
 from temporalio import workflow
 
 
+import asyncio
+
+
 # Import activity, passing it through the sandbox without reloading the module
 with workflow.unsafe.imports_passed_through():
     from activities import (
@@ -61,9 +64,18 @@ class ClickHouseGeoIPImport:
             start_to_close_timeout=timedelta(seconds=60),
         )
 
-        for ip_family in ["IPv4", "IPv6"]:
-            await workflow.execute_child_workflow(
-                ClickHouseGeoIPDataInsert.run,
-                args=[temp_location, ip_family],
-                id=f"clickhouse-geoip-data-insert-{ip_family.lower()}",
-            )
+        child_workflow_ipv4_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPDataInsert.run,
+            args=[temp_location, "IPv4"],
+            id="clickhouse-geoip-data-insert-ipv4",
+        )
+
+        child_workflow_ipv6_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPDataInsert.run,
+            args=[temp_location, "IPv6"],
+            id="clickhouse-geoip-data-insert-ipv6",
+        )
+
+        await asyncio.gather(child_workflow_ipv4_insert, child_workflow_ipv6_insert)
+
+        return "GeoIP import completed"
