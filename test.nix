@@ -6,7 +6,7 @@
 
 let
   testDatasetIPv4 = pkgs.writeTextFile {
-    name = "data-ipv4.csv";
+    name = "dbip-city-ipv4.csv";
     text = ''
       1.0.0.0,1.0.0.255,AU,Queensland,,South Brisbane,,-27.4767,153.017,
       1.0.1.0,1.0.3.255,CN,Fujian,,Wenquan,,26.0998,119.297,
@@ -21,7 +21,7 @@ let
   };
 
   testDatasetIPv6 = pkgs.writeTextFile {
-    name = "data-ipv6.csv";
+    name = "dbip-city-ipv6.csv";
     text = ''
       2000::,2000:ffff:ffff:ffff:ffff:ffff:ffff:ffff,CH,Fribourg,,Murten/Morat,,46.9219,7.16595,
       2001::,2001::ffff:ffff:ffff:ffff:ffff:ffff,US,California,,Los Angeles (Playa Vista),,33.9829,-118.405,
@@ -37,7 +37,7 @@ let
   };
 
   testDatasetIPv4Compressed =
-    pkgs.runCommand "data-ipv4.csv.gz"
+    pkgs.runCommand "dbip-city-ipv4.csv.gz"
       {
         buildInputs = [ pkgs.gzip ];
         src = testDatasetIPv4;
@@ -47,7 +47,7 @@ let
       '';
 
   testDatasetIPv6Compressed =
-    pkgs.runCommand "data-ipv6.csv.gz"
+    pkgs.runCommand "dbip-city-ipv6.csv.gz"
       {
         buildInputs = [ pkgs.gzip ];
         src = testDatasetIPv6;
@@ -120,8 +120,8 @@ in
               root * ${
                 pkgs.runCommand "testdir" { } ''
                   mkdir "$out"
-                  cp ${testDatasetIPv4Compressed} $out/data-ipv4.csv.gz
-                  cp ${testDatasetIPv6Compressed} $out/data-ipv6.csv.gz
+                  cp ${testDatasetIPv4Compressed} $out/dbip-city-ipv4.csv.gz
+                  cp ${testDatasetIPv6Compressed} $out/dbip-city-ipv6.csv.gz
                 ''
               }
             }
@@ -140,6 +140,8 @@ in
           requiredBy = [ "network-online.target" ];
 
           environment = {
+            DOWNLOAD_HOST = "http://caddy/";
+
             CLICKHOUSE_DATABASE = "geoip";
             CLICKHOUSE_HOST = "clickhouse";
             CLICKHOUSE_PASSWORD = "testpassword";
@@ -405,51 +407,6 @@ in
             geoip.geoip_ipv6;
       '';
 
-      createTableGeoIPCIDR = pkgs.writeText "create-table-geoip.sql" ''
-        CREATE TABLE geoip.geoip (
-           cidr String,
-           latitude Float64,
-           longitude Float64,
-           country_code String
-        )
-        ENGINE = MergeTree()
-        ORDER BY cidr;
-      '';
-
-      insertGeoIPv4 = pkgs.writeText "insert-geoip4.sql" ''
-        INSERT INTO
-            geoip.geoip
-        WITH
-            bitXor(ip_range_start, ip_range_end) AS xor,
-            if(xor != 0, ceil(log2(xor)), 0) AS unmatched,
-            32 - unmatched AS cidr_suffix,
-            toIPv4(bitAnd(bitNot(pow(2, unmatched) - 1), ip_range_start)::UInt64) AS cidr_address
-        SELECT
-            concat(toString(cidr_address), '/' ,toString(cidr_suffix)) AS cidr,
-            latitude,
-            longitude,
-            country_code
-        FROM
-            geoip.geoip_ipv4;
-      '';
-
-      insertGeoIPv6 = pkgs.writeText "insert-geoip6.sql" ''
-        INSERT INTO
-            geoip.geoip
-        WITH
-            bitXor(ip_range_start, ip_range_end) AS xor,
-            if(xor != 0, toUInt8(ceil(log2(xor))), 0) AS unmatched,
-            128 - unmatched AS cidr_suffix,
-            CAST(reverse(reinterpretAsFixedString(bitAnd(bitNot(bitShiftRight(toUInt128(bitNot(0)), cidr_suffix)), ip_range_start))) AS IPv6) AS cidr_address
-        SELECT
-            concat(toString(cidr_address), '/', toString(cidr_suffix)) AS cidr,
-            latitude,
-            longitude,
-            country_code
-        FROM
-            geoip.geoip_ipv6;
-      '';
-
       createDictionaryIPTrie = pkgs.writeText "create-dictionary-ip-trie.sql" ''
         CREATE DICTIONARY geoip.ip_trie (
            cidr String,
@@ -534,22 +491,16 @@ in
 
       temporal.wait_until_succeeds(
         """
-          temporal workflow start --namespace clickhouse-geoip --type ClickHouseGeoIPImport --workflow-id clickhouse-geoip-import-ipv4 --task-queue clickhouse-geoip-import-queue --input '{"ip_family": "IPv4", "url": "http://caddy/data-ipv4.csv.gz"}'
-        """
-      )
-
-      temporal.wait_until_succeeds(
-        """
-          temporal workflow start --namespace clickhouse-geoip --type ClickHouseGeoIPImport --workflow-id clickhouse-geoip-import-ipv6 --task-queue clickhouse-geoip-import-queue --input '{"ip_family": "IPv6", "url": "http://caddy/data-ipv6.csv.gz"}'
+          temporal workflow start --namespace clickhouse-geoip --type ClickHouseGeoIPImport --workflow-id clickhouse-geoip-import --task-queue clickhouse-geoip-import-queue
         """
       )
 
       import json
-      workflow_result_v4_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-import-ipv4 --output json", timeout=60))
+      workflow_result_v4_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-data-insert-ipv4 --output json", timeout=60))
       assert workflow_result_v4_json['result'] == 9
       assert workflow_result_v4_json['status'] == "COMPLETED"
 
-      workflow_result_v6_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-import-ipv6 --output json", timeout=60))
+      workflow_result_v6_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-data-insert-ipv6 --output json", timeout=60))
       assert workflow_result_v6_json['result'] == 10
       assert workflow_result_v6_json['status'] == "COMPLETED"
 
@@ -568,17 +519,6 @@ in
       ))
 
       clickhouse.log(clickhouse.wait_until_succeeds(
-        "cat ${createTableGeoIPCIDR} | clickhouse-client"
-      ))
-
-      clickhouse.log(clickhouse.wait_until_succeeds(
-        "cat ${insertGeoIPv4} | clickhouse-client"
-      ))
-      clickhouse.log(clickhouse.wait_until_succeeds(
-        "cat ${insertGeoIPv6} | clickhouse-client"
-      ))
-
-      clickhouse.log(clickhouse.wait_until_succeeds(
         "cat ${createDictionaryIPTrie} | clickhouse-client"
       ))
 
@@ -589,13 +529,11 @@ in
       result = clickhouse.succeed(
         "cat ${getDictionaryIPTrieIPv4} | clickhouse-client"
       )
-
       assert result.strip() == "('AU',-38.0268,145.301)"
 
       result = clickhouse.succeed(
         "cat ${getDictionaryIPTrieIPv6} | clickhouse-client"
       )
-
       assert result.strip() == "('US',33.9829,-118.405)"
     '';
 }
