@@ -24,16 +24,21 @@ async def delete_temp_location(temp_location: str):
 
 
 @activity.defn
-async def download_file(temp_location: str, url: str) -> str:
-    local_filename = url.split("/")[-1]
+async def download_file(temp_location: str, filename: str) -> str:
+    target_host = (
+        "https://github.com/sapics/ip-location-db/raw/refs/heads/main/dbip-city/"
+    )
 
-    with requests.get(url, stream=True) as r:
+    if "DOWNLOAD_HOST" in os.environ:
+        target_host = os.environ.get("DOWNLOAD_HOST")
+
+    with requests.get(target_host + filename, stream=True) as r:
         r.raise_for_status()
-        with open(temp_location + local_filename, "wb") as f:
+        with open(temp_location + filename, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-    return local_filename
+    return filename
 
 
 @activity.defn
@@ -53,7 +58,99 @@ async def decompress_file(temp_location: str, filename: str) -> str:
 
 
 @activity.defn
-async def clickhouse_create_table_geoip(ip_family: str) -> str:
+async def clickhouse_create_geoip_cidr_table() -> str:
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        database=os.environ["CLICKHOUSE_DATABASE"],
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        username=os.environ["CLICKHOUSE_USERNAME"],
+    )
+
+    client.command("""
+        CREATE OR REPLACE TABLE geoip (
+           cidr String,
+           latitude Float64,
+           longitude Float64,
+           country_code String
+        )
+        ENGINE = MergeTree()
+        ORDER BY cidr;
+    """)
+
+    return "geoip"
+
+
+@activity.defn
+async def clickhouse_insert_geoip_shared_table_records(ip_family: str) -> str:
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        database=os.environ["CLICKHOUSE_DATABASE"],
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        username=os.environ["CLICKHOUSE_USERNAME"],
+    )
+
+    SQL_TEMPLATE = """
+        INSERT INTO geoip
+        WITH
+            bitXor(ip_range_start, ip_range_end) AS xor,
+            if(xor != 0, {unmatched_expr}, 0) AS unmatched,
+            {bit_width} - unmatched AS cidr_suffix,
+            {cidr_address_expr} AS cidr_address
+        SELECT
+            concat(toString(cidr_address), '/', toString(cidr_suffix)) AS cidr,
+            latitude,
+            longitude,
+            country_code
+        FROM geoip.{source_table};
+    """
+
+    GEOIP_SQL_PARAMS = {
+        "IPv4": {
+            "bit_width": 32,
+            "unmatched_expr": "ceil(log2(xor))",
+            "cidr_address_expr": """
+                toIPv4(
+                    bitAnd(
+                        bitNot(pow(2, unmatched) - 1),
+                        ip_range_start
+                    )::UInt64
+                )
+            """,
+            "source_table": "geoip_ipv4",
+        },
+        "IPv6": {
+            "bit_width": 128,
+            "unmatched_expr": "toUInt8(ceil(log2(xor)))",
+            "cidr_address_expr": """
+                CAST(
+                    reverse(
+                        reinterpretAsFixedString(
+                            bitAnd(
+                                bitNot(
+                                    bitShiftRight(
+                                        toUInt128(bitNot(0)),
+                                        cidr_suffix
+                                    )
+                                ),
+                                ip_range_start
+                            )
+                        )
+                    ) AS IPv6
+                )
+            """,
+            "source_table": "geoip_ipv6",
+        },
+    }
+
+    params = GEOIP_SQL_PARAMS[ip_family]
+    query = SQL_TEMPLATE.format(**params)
+    client.command(query)
+
+    return f"geoip_{ip_family.lower()}"
+
+
+@activity.defn
+async def clickhouse_create_geoip_raw_records_table(ip_family: str) -> str:
     client = clickhouse_connect.get_client(
         host=os.environ["CLICKHOUSE_HOST"],
         database=os.environ["CLICKHOUSE_DATABASE"],
@@ -83,7 +180,7 @@ async def clickhouse_create_table_geoip(ip_family: str) -> str:
 
 
 @activity.defn
-async def clickhouse_import_geoip(ip_family: str, filename: str) -> int:
+async def clickhouse_insert_geoip_raw_records(ip_family: str, filename: str) -> int:
     client = clickhouse_connect.get_client(
         host=os.environ["CLICKHOUSE_HOST"],
         database=os.environ["CLICKHOUSE_DATABASE"],

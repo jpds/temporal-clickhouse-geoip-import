@@ -11,12 +11,14 @@ from temporalio.worker import Worker
 from activities import (
     create_temp_location,
     delete_temp_location,
-    clickhouse_create_table_geoip,
+    clickhouse_create_geoip_cidr_table,
+    clickhouse_create_geoip_raw_records_table,
+    clickhouse_insert_geoip_raw_records,
+    clickhouse_insert_geoip_shared_table_records,
     download_file,
     decompress_file,
-    clickhouse_import_geoip,
 )
-from workflows import ClickHouseGeoIPImport
+from workflows import ClickHouseGeoIPImport, ClickHouseGeoIPDataInsert
 
 
 async def main():
@@ -31,14 +33,16 @@ async def main():
     worker = Worker(
         client,
         task_queue="clickhouse-geoip-import-queue",
-        workflows=[ClickHouseGeoIPImport],
+        workflows=[ClickHouseGeoIPImport, ClickHouseGeoIPDataInsert],
         activities=[
             create_temp_location,
-            clickhouse_create_table_geoip,
             download_file,
             decompress_file,
-            clickhouse_import_geoip,
             delete_temp_location,
+            clickhouse_create_geoip_cidr_table,
+            clickhouse_create_geoip_raw_records_table,
+            clickhouse_insert_geoip_raw_records,
+            clickhouse_insert_geoip_shared_table_records,
         ],
     )
     await worker.run()
