@@ -19,11 +19,6 @@ async def create_temp_location() -> str:
 
 
 @activity.defn
-async def delete_temp_location(temp_location: str):
-    shutil.rmtree(temp_location)
-
-
-@activity.defn
 async def download_file(temp_location: str, filename: str) -> str:
     target_host = (
         "https://github.com/sapics/ip-location-db/raw/refs/heads/main/dbip-city/"

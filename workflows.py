@@ -6,7 +6,6 @@ from temporalio import workflow
 with workflow.unsafe.imports_passed_through():
     from activities import (
         create_temp_location,
-        delete_temp_location,
         download_file,
         decompress_file,
         clickhouse_create_geoip_cidr_table,

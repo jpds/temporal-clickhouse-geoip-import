@@ -10,7 +10,6 @@ from temporalio.worker import Worker
 
 from activities import (
     create_temp_location,
-    delete_temp_location,
     clickhouse_create_geoip_cidr_table,
     clickhouse_create_geoip_raw_records_table,
     clickhouse_insert_geoip_raw_records,
@@ -38,7 +37,6 @@ async def main():
             create_temp_location,
             download_file,
             decompress_file,
-            delete_temp_location,
             clickhouse_create_geoip_cidr_table,
             clickhouse_create_geoip_raw_records_table,
             clickhouse_insert_geoip_raw_records,
