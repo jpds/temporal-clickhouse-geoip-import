@@ -175,7 +175,7 @@ async def clickhouse_create_geoip_records_table(ip_family: str) -> str:
 
 
 @activity.defn
-async def clickhouse_insert_geoip_records(ip_family: str, filename: str) -> str:
+async def clickhouse_insert_geoip_records(ip_family: str, filename: str) -> int:
     client = clickhouse_connect.get_client(
         host=os.environ["CLICKHOUSE_HOST"],
         database=os.environ["CLICKHOUSE_DATABASE"],
@@ -206,4 +206,4 @@ async def clickhouse_insert_geoip_records(ip_family: str, filename: str) -> str:
 
     client.insert(f"geoip_{ip_family.lower()}", rows_to_insert)
 
-    return f"{len(rows_to_insert)} records inserted for {ip_family}"
+    return len(rows_to_insert)

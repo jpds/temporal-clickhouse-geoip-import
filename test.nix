@@ -497,12 +497,16 @@ in
 
       import json
       workflow_result_v4_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-insert-ipv4 --output json", timeout=60))
-      assert workflow_result_v4_json['result'] == "9 records inserted for IPv4"
+      assert workflow_result_v4_json['result'] == 9
       assert workflow_result_v4_json['status'] == "COMPLETED"
 
       workflow_result_v6_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-insert-ipv6 --output json", timeout=60))
-      assert workflow_result_v6_json['result'] == "10 records inserted for IPv6"
+      assert workflow_result_v6_json['result'] == 10
       assert workflow_result_v6_json['status'] == "COMPLETED"
+
+      workflow_result_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-import --output json", timeout=60))
+      assert workflow_result_json['result'] == "GeoIP import completed: inserted 9 IPv4 and 10 IPv6 records"
+      assert workflow_result_json['status'] == "COMPLETED"
 
       clickhouse.log(clickhouse.wait_until_succeeds(
         "cat ${selectQueryIPv4} | clickhouse-client | grep '9'"
