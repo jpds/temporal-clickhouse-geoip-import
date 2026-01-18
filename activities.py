@@ -53,7 +53,7 @@ async def decompress_file(temp_location: str, filename: str) -> str:
 
 
 @activity.defn
-async def clickhouse_create_geoip_cidr_table() -> str:
+async def clickhouse_create_geoip_shared_table() -> str:
     client = clickhouse_connect.get_client(
         host=os.environ["CLICKHOUSE_HOST"],
         database=os.environ["CLICKHOUSE_DATABASE"],

@@ -11,8 +11,8 @@ with workflow.unsafe.imports_passed_through():
         create_temp_location,
         download_file,
         decompress_file,
-        clickhouse_create_geoip_cidr_table,
         clickhouse_create_geoip_raw_records_table,
+        clickhouse_create_geoip_shared_table,
         clickhouse_insert_geoip_raw_records,
         clickhouse_insert_geoip_shared_table_records,
     )
@@ -77,7 +77,7 @@ class ClickHouseGeoIPImport:
         await asyncio.gather(ipv4_raw_insert, ipv6_raw_insert)
 
         await workflow.execute_activity(
-            clickhouse_create_geoip_cidr_table,
+            clickhouse_create_geoip_shared_table,
             start_to_close_timeout=timedelta(seconds=600),
         )
 
