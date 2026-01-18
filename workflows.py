@@ -42,13 +42,18 @@ class ClickHouseGeoIPDataInsert:
             args=[ip_family, decompressed_file],
             start_to_close_timeout=timedelta(seconds=60),
         )
+        return records
+
+
+@workflow.defn
+class ClickHouseGeoIPSharedTableInsert:
+    @workflow.run
+    async def run(self, ip_family: str):
         await workflow.execute_activity(
             clickhouse_insert_geoip_shared_table_records,
             ip_family,
             start_to_close_timeout=timedelta(seconds=60),
         )
-
-        return records
 
 
 @workflow.defn
@@ -59,23 +64,33 @@ class ClickHouseGeoIPImport:
             create_temp_location, start_to_close_timeout=timedelta(seconds=60)
         )
 
+        ipv4_raw_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPDataInsert.run,
+            args=[temp_location, "IPv4"],
+            id="clickhouse-geoip-data-insert-ipv4",
+        )
+        ipv6_raw_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPDataInsert.run,
+            args=[temp_location, "IPv6"],
+            id="clickhouse-geoip-data-insert-ipv6",
+        )
+        await asyncio.gather(ipv4_raw_insert, ipv6_raw_insert)
+
         await workflow.execute_activity(
             clickhouse_create_geoip_cidr_table,
             start_to_close_timeout=timedelta(seconds=60),
         )
 
-        child_workflow_ipv4_insert = workflow.execute_child_workflow(
-            ClickHouseGeoIPDataInsert.run,
-            args=[temp_location, "IPv4"],
-            id="clickhouse-geoip-data-insert-ipv4",
+        ipv4_shared_table_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPSharedTableInsert.run,
+            "IPv4",
+            id="clickhouse-geoip-shared-table-insert-ipv4",
         )
-
-        child_workflow_ipv6_insert = workflow.execute_child_workflow(
-            ClickHouseGeoIPDataInsert.run,
-            args=[temp_location, "IPv6"],
-            id="clickhouse-geoip-data-insert-ipv6",
+        ipv6_shared_table_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPSharedTableInsert.run,
+            "IPv6",
+            id="clickhouse-geoip-shared-table-insert-ipv6",
         )
-
-        await asyncio.gather(child_workflow_ipv4_insert, child_workflow_ipv6_insert)
+        await asyncio.gather(ipv4_shared_table_insert, ipv6_shared_table_insert)
 
         return "GeoIP import completed"

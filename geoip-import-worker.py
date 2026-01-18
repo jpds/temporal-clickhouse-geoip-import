@@ -17,7 +17,11 @@ from activities import (
     download_file,
     decompress_file,
 )
-from workflows import ClickHouseGeoIPImport, ClickHouseGeoIPDataInsert
+from workflows import (
+    ClickHouseGeoIPImport,
+    ClickHouseGeoIPDataInsert,
+    ClickHouseGeoIPSharedTableInsert,
+)
 
 
 async def main():
@@ -32,7 +36,11 @@ async def main():
     worker = Worker(
         client,
         task_queue="clickhouse-geoip-import-queue",
-        workflows=[ClickHouseGeoIPImport, ClickHouseGeoIPDataInsert],
+        workflows=[
+            ClickHouseGeoIPImport,
+            ClickHouseGeoIPDataInsert,
+            ClickHouseGeoIPSharedTableInsert,
+        ],
         activities=[
             create_temp_location,
             download_file,
