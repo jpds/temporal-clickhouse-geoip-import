@@ -19,7 +19,7 @@ from activities import (
 )
 from workflows import (
     ClickHouseGeoIPImport,
-    ClickHouseGeoIPDataInsert,
+    ClickHouseGeoIPRawInsert,
     ClickHouseGeoIPSharedTableInsert,
 )
 
@@ -38,7 +38,7 @@ async def main():
         task_queue="clickhouse-geoip-import-queue",
         workflows=[
             ClickHouseGeoIPImport,
-            ClickHouseGeoIPDataInsert,
+            ClickHouseGeoIPRawInsert,
             ClickHouseGeoIPSharedTableInsert,
         ],
         activities=[

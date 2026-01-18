@@ -19,7 +19,7 @@ with workflow.unsafe.imports_passed_through():
 
 
 @workflow.defn
-class ClickHouseGeoIPDataInsert:
+class ClickHouseGeoIPRawInsert:
     @workflow.run
     async def run(self, temp_location: str, ip_family: str) -> str:
         downloaded_file = await workflow.execute_activity(
@@ -65,14 +65,14 @@ class ClickHouseGeoIPImport:
         )
 
         ipv4_raw_insert = workflow.execute_child_workflow(
-            ClickHouseGeoIPDataInsert.run,
+            ClickHouseGeoIPRawInsert.run,
             args=[temp_location, "IPv4"],
-            id="clickhouse-geoip-data-insert-ipv4",
+            id="clickhouse-geoip-raw-insert-ipv4",
         )
         ipv6_raw_insert = workflow.execute_child_workflow(
-            ClickHouseGeoIPDataInsert.run,
+            ClickHouseGeoIPRawInsert.run,
             args=[temp_location, "IPv6"],
-            id="clickhouse-geoip-data-insert-ipv6",
+            id="clickhouse-geoip-raw-insert-ipv6",
         )
         await asyncio.gather(ipv4_raw_insert, ipv6_raw_insert)
 
