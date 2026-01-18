@@ -496,11 +496,11 @@ in
       )
 
       import json
-      workflow_result_v4_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-raw-insert-ipv4 --output json", timeout=60))
+      workflow_result_v4_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-insert-ipv4 --output json", timeout=60))
       assert workflow_result_v4_json['result'] == "9 records inserted for IPv4"
       assert workflow_result_v4_json['status'] == "COMPLETED"
 
-      workflow_result_v6_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-raw-insert-ipv6 --output json", timeout=60))
+      workflow_result_v6_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-insert-ipv6 --output json", timeout=60))
       assert workflow_result_v6_json['result'] == "10 records inserted for IPv6"
       assert workflow_result_v6_json['status'] == "COMPLETED"
 

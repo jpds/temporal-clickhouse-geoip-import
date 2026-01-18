@@ -11,15 +11,15 @@ with workflow.unsafe.imports_passed_through():
         create_temp_location,
         download_file,
         decompress_file,
-        clickhouse_create_geoip_raw_records_table,
+        clickhouse_create_geoip_records_table,
         clickhouse_create_geoip_shared_table,
-        clickhouse_insert_geoip_raw_records,
+        clickhouse_insert_geoip_records,
         clickhouse_insert_geoip_shared_table_records,
     )
 
 
 @workflow.defn
-class ClickHouseGeoIPRawInsert:
+class ClickHouseGeoIPInsert:
     @workflow.run
     async def run(self, temp_location: str, ip_family: str) -> str:
         downloaded_file = await workflow.execute_activity(
@@ -33,12 +33,12 @@ class ClickHouseGeoIPRawInsert:
             start_to_close_timeout=timedelta(seconds=600),
         )
         await workflow.execute_activity(
-            clickhouse_create_geoip_raw_records_table,
+            clickhouse_create_geoip_records_table,
             ip_family,
             start_to_close_timeout=timedelta(seconds=60),
         )
         records = await workflow.execute_activity(
-            clickhouse_insert_geoip_raw_records,
+            clickhouse_insert_geoip_records,
             args=[ip_family, decompressed_file],
             start_to_close_timeout=timedelta(seconds=600),
         )
@@ -64,17 +64,17 @@ class ClickHouseGeoIPImport:
             create_temp_location, start_to_close_timeout=timedelta(seconds=60)
         )
 
-        ipv4_raw_insert = workflow.execute_child_workflow(
-            ClickHouseGeoIPRawInsert.run,
+        ipv4_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPInsert.run,
             args=[temp_location, "IPv4"],
-            id="clickhouse-geoip-raw-insert-ipv4",
+            id="clickhouse-geoip-insert-ipv4",
         )
-        ipv6_raw_insert = workflow.execute_child_workflow(
-            ClickHouseGeoIPRawInsert.run,
+        ipv6_insert = workflow.execute_child_workflow(
+            ClickHouseGeoIPInsert.run,
             args=[temp_location, "IPv6"],
-            id="clickhouse-geoip-raw-insert-ipv6",
+            id="clickhouse-geoip-insert-ipv6",
         )
-        await asyncio.gather(ipv4_raw_insert, ipv6_raw_insert)
+        await asyncio.gather(ipv4_insert, ipv6_insert)
 
         await workflow.execute_activity(
             clickhouse_create_geoip_shared_table,
