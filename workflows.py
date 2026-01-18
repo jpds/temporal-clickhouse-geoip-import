@@ -25,12 +25,12 @@ class ClickHouseGeoIPRawInsert:
         downloaded_file = await workflow.execute_activity(
             download_file,
             args=[temp_location, f"dbip-city-{ip_family.lower()}.csv.gz"],
-            start_to_close_timeout=timedelta(seconds=60),
+            start_to_close_timeout=timedelta(seconds=600),
         )
         decompressed_file = await workflow.execute_activity(
             decompress_file,
             args=[temp_location, downloaded_file],
-            start_to_close_timeout=timedelta(seconds=60),
+            start_to_close_timeout=timedelta(seconds=600),
         )
         await workflow.execute_activity(
             clickhouse_create_geoip_raw_records_table,
@@ -40,7 +40,7 @@ class ClickHouseGeoIPRawInsert:
         records = await workflow.execute_activity(
             clickhouse_insert_geoip_raw_records,
             args=[ip_family, decompressed_file],
-            start_to_close_timeout=timedelta(seconds=60),
+            start_to_close_timeout=timedelta(seconds=600),
         )
         return records
 
@@ -52,7 +52,7 @@ class ClickHouseGeoIPSharedTableInsert:
         await workflow.execute_activity(
             clickhouse_insert_geoip_shared_table_records,
             ip_family,
-            start_to_close_timeout=timedelta(seconds=60),
+            start_to_close_timeout=timedelta(seconds=600),
         )
 
 
@@ -78,7 +78,7 @@ class ClickHouseGeoIPImport:
 
         await workflow.execute_activity(
             clickhouse_create_geoip_cidr_table,
-            start_to_close_timeout=timedelta(seconds=60),
+            start_to_close_timeout=timedelta(seconds=600),
         )
 
         ipv4_shared_table_insert = workflow.execute_child_workflow(
