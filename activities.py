@@ -226,6 +226,9 @@ async def clickhouse_insert_geoip_records(ip_family: str, filename: str) -> int:
         username=os.environ["CLICKHOUSE_USERNAME"],
     )
 
+    if not os.path.isfile(filename):
+        raise ApplicationError(f"File not found at {filename}", non_retryable=True)
+
     with open(filename, "r") as csvfile:
         reader = csv.reader(csvfile)
 
