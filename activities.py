@@ -83,7 +83,12 @@ async def download_file(temp_location: str, filename: str) -> str:
 async def decompress_file(temp_location: str, filename: str) -> str:
     out_path, ext = os.path.splitext(filename)
 
-    with gzip.open(temp_location + filename, "rb") as gz:
+    full_path = temp_location + filename
+
+    if not os.path.isfile(full_path):
+        raise ApplicationError(f"File not found at {full_path}", non_retryable=True)
+
+    with gzip.open(full_path, "rb") as gz:
         with io.BufferedReader(gz) as buffered_reader:
             with open(temp_location + out_path, "wb") as out_file:
                 while True:
