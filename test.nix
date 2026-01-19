@@ -424,43 +424,6 @@ in
         LIFETIME(3600);
       '';
 
-      selectQueryIPv4 = pkgs.writeText "select-count-ipv4.sql" ''
-        SELECT count() FROM geoip.geoip_ipv4;
-      '';
-
-      selectQueryIPv6 = pkgs.writeText "select-count-ipv6.sql" ''
-        SELECT count() FROM geoip.geoip_ipv6;
-      '';
-
-      # https://clickhouse.com/blog/geolocating-ips-in-clickhouse-and-grafana
-      selectBitXORIPv4 = pkgs.writeText "select-bitxor-ipv4.sql" ''
-        WITH
-            bitXor(ip_range_start, ip_range_end) AS xor,
-            if(xor != 0, ceil(log2(xor)), 0) AS unmatched,
-            32 - unmatched AS cidr_suffix,
-            toIPv4(bitAnd(bitNot(pow(2, unmatched) - 1), ip_range_start)::UInt64) AS cidr_address
-        SELECT
-            ip_range_start,
-            ip_range_end,
-            concat(toString(cidr_address), '/', toString(cidr_suffix)) AS cidr
-        FROM
-            geoip.geoip_ipv4;
-      '';
-
-      selectBitXORIPv6 = pkgs.writeText "select-bitxor-ipv6.sql" ''
-        WITH
-            bitXor(ip_range_start, ip_range_end) AS xor,
-            if(xor != 0, toUInt8(ceil(log2(xor))), 0) AS unmatched,
-            128 - unmatched AS cidr_suffix,
-            CAST(reverse(reinterpretAsFixedString(bitAnd(bitNot(bitShiftRight(toUInt128(bitNot(0)), cidr_suffix)), ip_range_start))) AS IPv6) AS cidr_address
-        SELECT
-            ip_range_start,
-            ip_range_end,
-            concat(toString(cidr_address), '/', toString(cidr_suffix)) AS cidr
-        FROM
-            geoip.geoip_ipv6;
-      '';
-
       selectTrie = pkgs.writeText "select-dictionary-ip-trie.sql" ''
         SELECT * FROM geoip.ip_trie;
       '';
@@ -552,20 +515,6 @@ in
       workflow_result_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-import --output json", timeout=60))
       assert workflow_result_json['result'] == "GeoIP import for version 2.3.2026010119 completed: inserted 9 IPv4 and 10 IPv6 records"
       assert workflow_result_json['status'] == "COMPLETED"
-
-      clickhouse.log(clickhouse.wait_until_succeeds(
-        "cat ${selectQueryIPv4} | clickhouse-client | grep '9'"
-      ))
-      clickhouse.log(clickhouse.wait_until_succeeds(
-        "cat ${selectQueryIPv6} | clickhouse-client | grep '10'"
-      ))
-
-      clickhouse.log(clickhouse.wait_until_succeeds(
-        "cat ${selectBitXORIPv4} | clickhouse-client"
-      ))
-      clickhouse.log(clickhouse.wait_until_succeeds(
-        "cat ${selectBitXORIPv6} | clickhouse-client"
-      ))
 
       clickhouse.log(clickhouse.wait_until_succeeds(
         "cat ${createDictionaryIPTrie} | clickhouse-client"
