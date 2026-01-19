@@ -16,6 +16,7 @@ from activities import (
     clickhouse_insert_geoip_shared_table_records,
     download_file,
     decompress_file,
+    read_geoip_dataset_version,
 )
 from workflows import (
     ClickHouseGeoIPImport,
@@ -49,6 +50,7 @@ async def main():
             clickhouse_create_geoip_shared_table,
             clickhouse_insert_geoip_records,
             clickhouse_insert_geoip_shared_table_records,
+            read_geoip_dataset_version,
         ],
     )
     await worker.run()

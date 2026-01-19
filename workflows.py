@@ -15,6 +15,7 @@ with workflow.unsafe.imports_passed_through():
         clickhouse_create_geoip_shared_table,
         clickhouse_insert_geoip_records,
         clickhouse_insert_geoip_shared_table_records,
+        read_geoip_dataset_version,
     )
 
 
@@ -60,8 +61,11 @@ class ClickHouseGeoIPSharedTableInsert:
 class ClickHouseGeoIPImport:
     @workflow.run
     async def run(self):
+        version = await workflow.execute_activity(
+            read_geoip_dataset_version, start_to_close_timeout=timedelta(seconds=60)
+        )
         temp_location = await workflow.execute_activity(
-            create_temp_location, start_to_close_timeout=timedelta(seconds=60)
+            create_temp_location, version, start_to_close_timeout=timedelta(seconds=60)
         )
 
         ipv4_insert = workflow.execute_child_workflow(
@@ -93,4 +97,4 @@ class ClickHouseGeoIPImport:
         )
         await asyncio.gather(ipv4_shared_table_insert, ipv6_shared_table_insert)
 
-        return f"GeoIP import completed: inserted {ipv4_records} IPv4 and {ipv6_records} IPv6 records"
+        return f"GeoIP import for version {version} completed: inserted {ipv4_records} IPv4 and {ipv6_records} IPv6 records"

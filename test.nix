@@ -5,6 +5,36 @@
 }:
 
 let
+  testDatasetJson = pkgs.writeTextFile {
+    name = "package.json";
+    text = ''
+      {
+        "name": "@ip-location-db/dbip-city",
+        "version": "2.3.2026010119",
+        "description": "Ip to location database",
+        "keywords": [
+          "ip",
+          "ip-location",
+          "ip-location-db",
+          "ipv4",
+          "ipv6",
+          "location",
+          "city",
+          "country"
+        ],
+        "license": "SEE LICENSE IN DBIP-LICENSE (CC-BY-4.0)",
+        "author": "sapics",
+        "publishConfig": {
+          "access": "public",
+          "registry": "https://registry.npmjs.org/"
+        },
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/sapics/ip-location-db.git"
+        }
+      }
+    '';
+  };
   testDatasetIPv4 = pkgs.writeTextFile {
     name = "dbip-city-ipv4.csv";
     text = ''
@@ -120,6 +150,7 @@ in
               root * ${
                 pkgs.runCommand "testdir" { } ''
                   mkdir "$out"
+                  cp ${testDatasetJson} $out/package.json
                   cp ${testDatasetIPv4Compressed} $out/dbip-city-ipv4.csv.gz
                   cp ${testDatasetIPv6Compressed} $out/dbip-city-ipv6.csv.gz
                 ''
@@ -505,7 +536,7 @@ in
       assert workflow_result_v6_json['status'] == "COMPLETED"
 
       workflow_result_json = json.loads(temporal.wait_until_succeeds("temporal workflow result --namespace clickhouse-geoip -w clickhouse-geoip-import --output json", timeout=60))
-      assert workflow_result_json['result'] == "GeoIP import completed: inserted 9 IPv4 and 10 IPv6 records"
+      assert workflow_result_json['result'] == "GeoIP import for version 2.3.2026010119 completed: inserted 9 IPv4 and 10 IPv6 records"
       assert workflow_result_json['status'] == "COMPLETED"
 
       clickhouse.log(clickhouse.wait_until_succeeds(

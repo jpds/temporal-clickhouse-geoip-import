@@ -1,7 +1,9 @@
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 import clickhouse_connect
 import csv
+import json
 import gzip
 import io
 import os
@@ -11,9 +13,39 @@ import tempfile
 
 
 @activity.defn
-async def create_temp_location() -> str:
+async def read_geoip_dataset_version() -> str:
+    target_host = (
+        "https://github.com/sapics/ip-location-db/raw/refs/heads/main/dbip-city/"
+    )
+
+    if "DOWNLOAD_HOST" in os.environ:
+        target_host = os.environ.get("DOWNLOAD_HOST")
+
+    url = target_host + "package.json"
+
+    response = requests.get(url)
+
+    if response.status_code == 404:
+        raise ApplicationError(f"Resource not found at {url}", non_retryable=True)
+
+    if response.status_code != 200:
+        raise Exception(f"Request failed with status code {response.status_code}")
+
+    data = response.json()
+    version = data.get("version")
+
+    if not version:
+        raise ApplicationError(
+            "Version key not found in the response", non_retryable=True
+        )
+
+    return version
+
+
+@activity.defn
+async def create_temp_location(version: str) -> str:
     tempdir = tempfile.TemporaryDirectory(
-        prefix="clickhouse-geoip-import", delete=False
+        prefix=f"clickhouse-geoip-import-{version}-", delete=False
     )
     return tempdir.name + "/"
 
