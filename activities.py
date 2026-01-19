@@ -64,8 +64,14 @@ async def download_file(temp_location: str, filename: str) -> str:
     if "DOWNLOAD_HOST" in os.environ:
         target_host = os.environ.get("DOWNLOAD_HOST")
 
-    with requests.get(target_host + filename, stream=True) as r:
+    url = target_host + filename
+
+    with requests.get(url, stream=True) as r:
+        if r.status_code == 404:
+            raise ApplicationError(f"Resource not found at {url}", non_retryable=True)
+
         r.raise_for_status()
+
         with open(temp_location + filename, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
