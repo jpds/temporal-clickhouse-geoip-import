@@ -7,34 +7,33 @@
 let
   testDatasetJson = pkgs.writeTextFile {
     name = "package.json";
-    text = ''
-      {
-        "name": "@ip-location-db/dbip-city",
-        "version": "2.3.2026010119",
-        "description": "Ip to location database",
-        "keywords": [
-          "ip",
-          "ip-location",
-          "ip-location-db",
-          "ipv4",
-          "ipv6",
-          "location",
-          "city",
-          "country"
-        ],
-        "license": "SEE LICENSE IN DBIP-LICENSE (CC-BY-4.0)",
-        "author": "sapics",
-        "publishConfig": {
-          "access": "public",
-          "registry": "https://registry.npmjs.org/"
-        },
-        "repository": {
-          "type": "git",
-          "url": "git+https://github.com/sapics/ip-location-db.git"
-        }
-      }
-    '';
+    text = builtins.toJSON {
+      name = "@ip-location-db/dbip-city";
+      version = "2.3.2026010119";
+      description = "Ip to location database";
+      keywords = [
+        "ip"
+        "ip-location"
+        "ip-location-db"
+        "ipv4"
+        "ipv6"
+        "location"
+        "city"
+        "country"
+      ];
+      license = "SEE LICENSE IN DBIP-LICENSE (CC-BY-4.0)";
+      author = "sapics";
+      publishConfig = {
+        access = "public";
+        registry = "https://registry.npmjs.org/";
+      };
+      repository = {
+        type = "git";
+        url = "git+https://github.com/sapics/ip-location-db.git";
+      };
+    };
   };
+
   testDatasetIPv4 = pkgs.writeTextFile {
     name = "dbip-city-ipv4.csv";
     text = ''
