@@ -9,6 +9,7 @@ import asyncio
 with workflow.unsafe.imports_passed_through():
     from activities import (
         create_temp_location,
+        delete_temp_location,
         download_file,
         decompress_file,
         clickhouse_create_geoip_records_table,
@@ -96,5 +97,11 @@ class ClickHouseGeoIPImport:
             id="clickhouse-geoip-shared-table-insert-ipv6",
         )
         await asyncio.gather(ipv4_shared_table_insert, ipv6_shared_table_insert)
+
+        await workflow.execute_activity(
+            delete_temp_location,
+            temp_location,
+            start_to_close_timeout=timedelta(seconds=600),
+        )
 
         return f"GeoIP import for version {version} completed: inserted {ipv4_records} IPv4 and {ipv6_records} IPv6 records"
