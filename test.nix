@@ -400,6 +400,30 @@ in
         CREATE DATABASE geoip;
       '';
 
+      createTableQuery = pkgs.writeText "create-table-geoip.sql" ''
+        CREATE OR REPLACE TABLE geoip.geoip (
+           cidr String,
+           latitude Float64,
+           longitude Float64,
+           country_code String
+        )
+        ENGINE = MergeTree()
+        ORDER BY cidr;
+      '';
+
+      createDictionaryIPTrie = pkgs.writeText "create-dictionary-ip-trie.sql" ''
+        CREATE DICTIONARY geoip.ip_trie (
+           cidr String,
+           latitude Float64,
+           longitude Float64,
+           country_code String
+        )
+        PRIMARY KEY cidr
+        SOURCE(CLICKHOUSE(TABLE 'geoip'))
+        LAYOUT(ip_trie)
+        LIFETIME(3600);
+      '';
+
       selectQueryIPv4 = pkgs.writeText "select-count-ipv4.sql" ''
         SELECT count() FROM geoip.geoip_ipv4;
       '';
@@ -437,19 +461,6 @@ in
             geoip.geoip_ipv6;
       '';
 
-      createDictionaryIPTrie = pkgs.writeText "create-dictionary-ip-trie.sql" ''
-        CREATE DICTIONARY geoip.ip_trie (
-           cidr String,
-           latitude Float64,
-           longitude Float64,
-           country_code String
-        )
-        PRIMARY KEY cidr
-        SOURCE(CLICKHOUSE(TABLE 'geoip'))
-        LAYOUT(ip_trie)
-        LIFETIME(3600);
-      '';
-
       selectTrie = pkgs.writeText "select-dictionary-ip-trie.sql" ''
         SELECT * FROM geoip.ip_trie;
       '';
@@ -481,6 +492,10 @@ in
 
       clickhouse.wait_until_succeeds(
         "cat ${createDatabaseQuery} | clickhouse-client"
+      )
+
+      clickhouse.wait_until_succeeds(
+        "cat ${createTableQuery} | clickhouse-client"
       )
 
       temporal.start()

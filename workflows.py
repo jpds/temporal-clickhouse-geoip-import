@@ -14,6 +14,8 @@ with workflow.unsafe.imports_passed_through():
         decompress_file,
         clickhouse_create_geoip_records_table,
         clickhouse_create_geoip_shared_table,
+        clickhouse_drop_geoip_shared_table,
+        clickhouse_exchange_geoip_table,
         clickhouse_insert_geoip_records,
         clickhouse_insert_geoip_shared_table_records,
         read_geoip_dataset_version,
@@ -50,10 +52,10 @@ class ClickHouseGeoIPInsert:
 @workflow.defn
 class ClickHouseGeoIPSharedTableInsert:
     @workflow.run
-    async def run(self, ip_family: str):
+    async def run(self, ip_family: str, version: str):
         await workflow.execute_activity(
             clickhouse_insert_geoip_shared_table_records,
-            ip_family,
+            args=[ip_family, version],
             start_to_close_timeout=timedelta(seconds=600),
         )
 
@@ -81,19 +83,20 @@ class ClickHouseGeoIPImport:
         )
         ipv4_records, ipv6_records = await asyncio.gather(ipv4_insert, ipv6_insert)
 
-        await workflow.execute_activity(
+        new_geoip_table = await workflow.execute_activity(
             clickhouse_create_geoip_shared_table,
+            version,
             start_to_close_timeout=timedelta(seconds=600),
         )
 
         ipv4_shared_table_insert = workflow.execute_child_workflow(
             ClickHouseGeoIPSharedTableInsert.run,
-            "IPv4",
+            args=["IPv4", version],
             id="clickhouse-geoip-shared-table-insert-ipv4",
         )
         ipv6_shared_table_insert = workflow.execute_child_workflow(
             ClickHouseGeoIPSharedTableInsert.run,
-            "IPv6",
+            args=["IPv6", version],
             id="clickhouse-geoip-shared-table-insert-ipv6",
         )
         await asyncio.gather(ipv4_shared_table_insert, ipv6_shared_table_insert)
@@ -101,6 +104,18 @@ class ClickHouseGeoIPImport:
         await workflow.execute_activity(
             delete_temp_location,
             temp_location,
+            start_to_close_timeout=timedelta(seconds=600),
+        )
+
+        await workflow.execute_activity(
+            clickhouse_exchange_geoip_table,
+            new_geoip_table,
+            start_to_close_timeout=timedelta(seconds=600),
+        )
+
+        await workflow.execute_activity(
+            clickhouse_drop_geoip_shared_table,
+            new_geoip_table,
             start_to_close_timeout=timedelta(seconds=600),
         )
 

@@ -101,7 +101,7 @@ async def decompress_file(temp_location: str, filename: str) -> str:
 
 
 @activity.defn
-async def clickhouse_create_geoip_shared_table() -> str:
+async def clickhouse_create_geoip_shared_table(version: str) -> str:
     client = clickhouse_connect.get_client(
         host=os.environ["CLICKHOUSE_HOST"],
         database=os.environ["CLICKHOUSE_DATABASE"],
@@ -109,8 +109,10 @@ async def clickhouse_create_geoip_shared_table() -> str:
         username=os.environ["CLICKHOUSE_USERNAME"],
     )
 
-    client.command("""
-        CREATE OR REPLACE TABLE geoip (
+    version_underscored = version.replace(".", "_")
+
+    client.command(f"""
+        CREATE OR REPLACE TABLE geoip_{version_underscored} (
            cidr String,
            latitude Float64,
            longitude Float64,
@@ -120,11 +122,13 @@ async def clickhouse_create_geoip_shared_table() -> str:
         ORDER BY cidr;
     """)
 
-    return "geoip"
+    return f"geoip_{version_underscored}"
 
 
 @activity.defn
-async def clickhouse_insert_geoip_shared_table_records(ip_family: str) -> str:
+async def clickhouse_insert_geoip_shared_table_records(
+    ip_family: str, version: str
+) -> str:
     client = clickhouse_connect.get_client(
         host=os.environ["CLICKHOUSE_HOST"],
         database=os.environ["CLICKHOUSE_DATABASE"],
@@ -132,8 +136,10 @@ async def clickhouse_insert_geoip_shared_table_records(ip_family: str) -> str:
         username=os.environ["CLICKHOUSE_USERNAME"],
     )
 
+    version_underscored = version.replace(".", "_")
+
     SQL_TEMPLATE = """
-        INSERT INTO geoip
+        INSERT INTO {target_table}
         WITH
             bitXor(ip_range_start, ip_range_end) AS xor,
             if(xor != 0, {unmatched_expr}, 0) AS unmatched,
@@ -160,6 +166,7 @@ async def clickhouse_insert_geoip_shared_table_records(ip_family: str) -> str:
                 )
             """,
             "source_table": "geoip_ipv4",
+            "target_table": f"geoip_{version_underscored}",
         },
         "IPv6": {
             "bit_width": 128,
@@ -182,6 +189,7 @@ async def clickhouse_insert_geoip_shared_table_records(ip_family: str) -> str:
                 )
             """,
             "source_table": "geoip_ipv6",
+            "target_table": f"geoip_{version_underscored}",
         },
     }
 
@@ -258,3 +266,35 @@ async def clickhouse_insert_geoip_records(ip_family: str, filename: str) -> int:
     client.insert(f"geoip_{ip_family.lower()}", rows_to_insert)
 
     return len(rows_to_insert)
+
+
+@activity.defn
+async def clickhouse_exchange_geoip_table(new_table_name: str):
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        database=os.environ["CLICKHOUSE_DATABASE"],
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        username=os.environ["CLICKHOUSE_USERNAME"],
+    )
+
+    client.command(f"""
+        EXCHANGE TABLES {new_table_name} AND geoip;
+    """)
+
+    return new_table_name
+
+
+@activity.defn
+async def clickhouse_drop_geoip_shared_table(new_table_name: str):
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        database=os.environ["CLICKHOUSE_DATABASE"],
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        username=os.environ["CLICKHOUSE_USERNAME"],
+    )
+
+    client.command(f"""
+        DROP TABLE {new_table_name};
+    """)
+
+    return new_table_name
